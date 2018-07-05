@@ -5,39 +5,56 @@ const Web3 = require('web3')
 const web3 = new Web3(provider)
 
 const { interface, bytecode } = require('../compile.js')
-let fetchedAccounts
-let inbox
+
+let accounts
+let lottery
 
 beforeEach( async () => {
-    fetchedAccounts = await web3.eth.getAccounts()
-
-    inbox = await new web3.eth.Contract(JSON.parse(interface))
+    accounts = await web3.eth.getAccounts()
+    lottery = await new web3.eth.Contract(JSON.parse(interface))
     .deploy({
-        data: bytecode,
-        arguments: ['hello'] 
+        data: `0x${bytecode}`
     })
     .send({
-        from: fetchedAccounts[0],
-        gas: '1000000'
+       from: accounts[0],
+       gas: '1000000'
     })
-
-    inbox.setProvider(provider)
 })
 
-describe('#Inbox', () => {
-    it('has a default message', async () => {
-        const message = await inbox.methods.message().call()
-        assert.equal(message, 'hello')
+describe('Lottery Contract', () => {
+    it('should deploy', async () => {
+        assert.ok(lottery.options.address)
     })
 
-    it('should update the message', async () => {
-        await inbox.methods.setMessage('bang bang').send({
-            from: fetchedAccounts[0],
-            gas: '1000000'
+    it('should allow player to enter', async () => {
+        await lottery.methods.enter().send({
+            from: accounts[0],
+            value: web3.utils.toWei('0.5', 'ether')
         })
 
-        message = await inbox.methods.message().call()
+        let players = await lottery.methods.getPlayers().call({
+            from: accounts[0]
+        })
 
-        assert.equal(message, 'bang bang')
+        assert.equal(accounts[0], players[0])
+    })
+
+
+    it('should allow multiple players to enter', async () => {
+        await lottery.methods.enter().send({
+            from: accounts[1],
+            value: web3.utils.toWei('0.5', 'ether')
+        })
+
+        await lottery.methods.enter().send({
+            from: accounts[0],
+            value: web3.utils.toWei('0.5', 'ether')
+        })
+
+        let players = await lottery.methods.getPlayers().call({
+            from: accounts[0]
+        })
+
+        assert.equal(2, players.length)
     })
 })
